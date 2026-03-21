@@ -254,6 +254,7 @@ export default function Dashboard() {
         <div className="fade-in">
           <div className="seats-section">
             <div className="seats-grid">
+              <h3 className="winner-label" style={{ marginBottom: '1rem', textAlign: 'center' }}>Posible Composición del Concejo Municipal de Vinto</h3>
               {totalVotos(totConcejo) > 0 ? (
                 calculateSeats(totConcejo).map((seat, i) => (
                   <div key={i} className="seat-item">
