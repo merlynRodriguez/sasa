@@ -557,8 +557,9 @@ body {
 }
 
 .seat-party {
-  font-size: 0.65rem;
-  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
 }
 
 /* ========== RECINTO DETAIL ========== */

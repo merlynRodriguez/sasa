@@ -45,9 +45,14 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    fetchTotales()
-    const interval = setInterval(fetchTotales, 180000)
-    return () => clearInterval(interval)
+    let timeoutId: number;
+    const poll = async () => {
+      await fetchTotales();
+      const jitter = 30000 + Math.random() * 5000;
+      timeoutId = window.setTimeout(poll, jitter);
+    };
+    poll();
+    return () => window.clearTimeout(timeoutId);
   }, [fetchTotales])
 
   // Fetch recinto detail
