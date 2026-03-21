@@ -126,7 +126,7 @@ export default function OperatorPanel() {
     const { error } = await supabaseA.storage
       .from('actas')
       .upload(fileName, foto, { contentType: 'image/jpeg', upsert: true })
-    if (error) { console.error('Upload error:', error); return null }
+    if (error) throw new Error('No se pudo subir la foto del acta: ' + error.message)
     const { data: urlData } = supabaseA.storage.from('actas').getPublicUrl(fileName)
     return urlData.publicUrl
   }

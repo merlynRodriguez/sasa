@@ -281,9 +281,27 @@ body {
 
 @media (max-width: 600px) {
   .dashboard-header {
-    flex-direction: column-reverse;
-    align-items: flex-end;
-    text-align: right;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    gap: 0.5rem;
+  }
+  .dashboard-header-left h1 {
+    font-size: 0.85rem;
+  }
+  .dashboard-header-left h2 {
+    font-size: 0.7rem;
+  }
+  .dashboard-header-right {
+    gap: 0.4rem;
+  }
+  .dashboard-header-right .party-name {
+    font-size: 1.2rem;
+  }
+  .dashboard-header-right .party-logo {
+    width: 40px;
+    height: 40px;
   }
 }
 
