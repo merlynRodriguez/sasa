@@ -222,6 +222,7 @@ export default function Dashboard() {
             <div className="winner-card">
               {winner ? (
                 <>
+                  <div className="winner-label">Candidato con mayor votación</div>
                   <img
                     src={`/candidatos/${winner.candidato.id}.jpg`}
                     alt={winner.candidato.nombre}
