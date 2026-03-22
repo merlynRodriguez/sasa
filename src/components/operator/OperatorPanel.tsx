@@ -18,14 +18,28 @@ export default function OperatorPanel() {
   const [nulosA, setNulosA] = useState<string>('')
   const [blancosC, setBlancosC] = useState<string>('')
   const [nulosC, setNulosC] = useState<string>('')
-  const [foto, setFoto] = useState<File|null>(null)
-  const [fotoPreview, setFotoPreview] = useState('')
+  // Alcalde photo state
+  const [fotoAlcalde, setFotoAlcalde] = useState<File|null>(null)
+  const [fotoAlcaldePreview, setFotoAlcaldePreview] = useState('')
+  // Concejo photo state
+  const [fotoConcejo, setFotoConcejo] = useState<File|null>(null)
+  const [fotoConcejoPreview, setFotoConcejoPreview] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{type:'success'|'error', text:string}|null>(null)
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
-  const cameraRef = useRef<HTMLInputElement>(null)
+  // Alcalde refs
+  const fileRefA = useRef<HTMLInputElement>(null)
+  const cameraRefA = useRef<HTMLInputElement>(null)
+  // Concejo refs
+  const fileRefC = useRef<HTMLInputElement>(null)
+  const cameraRefC = useRef<HTMLInputElement>(null)
+
+  const COMPRESSION_OPTS = {
+    maxSizeMB: 1,
+    maxWidthOrHeight: 1600,
+    useWebWorker: true
+  }
 
   useEffect(() => {
     if (!recinto) return
@@ -59,7 +73,9 @@ export default function OperatorPanel() {
     setVotosConcejo({ ...empty })
     setBlancosA(''); setNulosA('')
     setBlancosC(''); setNulosC('')
-    setFoto(null); setFotoPreview(''); setEditMode(false)
+    setFotoAlcalde(null); setFotoAlcaldePreview('')
+    setFotoConcejo(null); setFotoConcejoPreview('')
+    setEditMode(false)
   }
 
   const selectMesa = async (mesaId: string) => {
@@ -69,14 +85,12 @@ export default function OperatorPanel() {
 
     const mesa = mesas.find(m => m.id === mesaId)
     if (mesa?.verificada) {
-      // Already verified, cannot edit
       setStep('select')
       setMsg({ type: 'error', text: 'Esta mesa ya fue verificada y no puede editarse.' })
       return
     }
 
     if (mesa?.escrutada) {
-      // Load existing data for editing
       setEditMode(true)
       const { data: vA } = await supabaseA.from('votos_alcalde').select('*').eq('mesa_id', mesaId).single()
       const { data: vC } = await supabaseA.from('votos_concejo').select('*').eq('mesa_id', mesaId).single()
@@ -85,13 +99,14 @@ export default function OperatorPanel() {
         PARTIDO_IDS.forEach(k => { va[k] = vA[k] !== null ? String(vA[k]) : '' })
         setVotosAlcalde(va)
         setBlancosA(vA.blancos !== null ? String(vA.blancos) : ''); setNulosA(vA.nulos !== null ? String(vA.nulos) : '')
-        if (vA.foto_url) setFotoPreview(vA.foto_url)
+        if (vA.foto_url) setFotoAlcaldePreview(vA.foto_url)
       }
       if (vC) {
         const vc: Record<string,string> = {}
         PARTIDO_IDS.forEach(k => { vc[k] = vC[k] !== null ? String(vC[k]) : '' })
         setVotosConcejo(vc)
         setBlancosC(vC.blancos !== null ? String(vC.blancos) : ''); setNulosC(vC.nulos !== null ? String(vC.nulos) : '')
+        if (vC.foto_url) setFotoConcejoPreview(vC.foto_url)
       }
       setStep('alcalde')
     } else {
@@ -103,26 +118,26 @@ export default function OperatorPanel() {
     }
   }
 
-  const handleImageSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (
+    e: ChangeEvent<HTMLInputElement>,
+    setFile: (f: File) => void,
+    setPreview: (url: string) => void
+  ) => {
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1200,
-        useWebWorker: true
-      })
-      setFoto(compressed)
-      setFotoPreview(URL.createObjectURL(compressed))
+      const compressed = await imageCompression(file, COMPRESSION_OPTS)
+      setFile(compressed)
+      setPreview(URL.createObjectURL(compressed))
     } catch {
-      setFoto(file)
-      setFotoPreview(URL.createObjectURL(file))
+      setFile(file)
+      setPreview(URL.createObjectURL(file))
     }
   }
 
-  const uploadImage = async (): Promise<string|null> => {
-    if (!foto) return fotoPreview || null
-    const fileName = `${selectedMesa}-${Date.now()}.jpg`
+  const uploadImage = async (foto: File | null, preview: string, suffix: string): Promise<string|null> => {
+    if (!foto) return preview || null
+    const fileName = `${selectedMesa}-${suffix}-${Date.now()}.jpg`
     const { error } = await supabaseA.storage
       .from('actas')
       .upload(fileName, foto, { contentType: 'image/jpeg', upsert: true })
@@ -135,7 +150,7 @@ export default function OperatorPanel() {
     e.preventDefault()
     setSaving(true); setMsg(null)
     try {
-      const fotoUrl = await uploadImage()
+      const fotoUrl = await uploadImage(fotoAlcalde, fotoAlcaldePreview, 'alcalde')
       const payload: any = { 
         mesa_id: selectedMesa, 
         blancos: blancosA === '' ? null : Number(blancosA), 
@@ -163,11 +178,13 @@ export default function OperatorPanel() {
     e.preventDefault()
     setSaving(true); setMsg(null)
     try {
+      const fotoUrl = await uploadImage(fotoConcejo, fotoConcejoPreview, 'concejo')
       const payload: any = { 
         mesa_id: selectedMesa, 
         blancos: blancosC === '' ? null : Number(blancosC), 
         nulos: nulosC === '' ? null : Number(nulosC) 
       }
+      if (fotoUrl) payload.foto_url = fotoUrl
       PARTIDO_IDS.forEach(k => { payload[k] = votosConcejo[k] === '' ? null : Number(votosConcejo[k]) })
 
       if (editMode) {
@@ -209,74 +226,87 @@ export default function OperatorPanel() {
     nulos: string, setNulos: (n:string) => void,
     onSubmit: (e: FormEvent) => void,
     isAlcalde: boolean
-  ) => (
-    <form onSubmit={onSubmit}>
-      <div className="form-section fade-in">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <button type="button" className="btn btn-secondary" onClick={() => { setStep('select'); setSelectedMesa(''); }}>
-            ← Volver
-          </button>
-          <h2 style={{ margin: 0, color: 'var(--brand-celeste)', fontSize: '1.8rem', fontWeight: '900' }}>
-            Mesa {selectedMesa.split('-M')[1]?.replace(/^0/, '')}
-          </h2>
-          <div style={{ width: '80px' }} /> {/* Spacer to center title */}
-        </div>
-        <h3 className="form-title">{title}</h3>
-        {PARTIDOS.map((p, i) => (
-          <div key={p.id} className="vote-row">
-            <div className="vote-color-dot" style={{ backgroundColor: p.hex }} />
-            <span className="vote-party-label">{p.nombre}</span>
-            <input
-              type="number"
-              className="vote-input"
-              min={0}
-              value={votos[PARTIDO_IDS[i]]}
-              onChange={e => setVotos({ ...votos, [PARTIDO_IDS[i]]: e.target.value })}
-            />
-          </div>
-        ))}
-        <hr className="vote-divider" />
-        <div className="vote-row">
-          <div className="vote-color-dot" style={{ backgroundColor: '#888' }} />
-          <span className="vote-party-label">Votos Blancos</span>
-          <input type="number" className="vote-input" min={0} value={blancos}
-            onChange={e => setBlancos(e.target.value)} />
-        </div>
-        <div className="vote-row">
-          <div className="vote-color-dot" style={{ backgroundColor: '#444' }} />
-          <span className="vote-party-label">Votos Nulos</span>
-          <input type="number" className="vote-input" min={0} value={nulos}
-            onChange={e => setNulos(e.target.value)} />
-        </div>
-      </div>
+  ) => {
+    const currentFotoPreview = isAlcalde ? fotoAlcaldePreview : fotoConcejoPreview
+    const currentFileRef = isAlcalde ? fileRefA : fileRefC
+    const currentCameraRef = isAlcalde ? cameraRefA : cameraRefC
+    const setFile = isAlcalde
+      ? (f: File) => setFotoAlcalde(f)
+      : (f: File) => setFotoConcejo(f)
+    const setPreview = isAlcalde
+      ? (url: string) => setFotoAlcaldePreview(url)
+      : (url: string) => setFotoConcejoPreview(url)
 
-      {isAlcalde && (
+    return (
+      <form onSubmit={onSubmit}>
+        <div className="form-section fade-in">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => { setStep('select'); setSelectedMesa(''); }}>
+              ← Volver
+            </button>
+            <h2 style={{ margin: 0, color: 'var(--brand-celeste)', fontSize: '1.8rem', fontWeight: '900' }}>
+              Mesa {selectedMesa.split('-M')[1]?.replace(/^0/, '')}
+            </h2>
+            <div style={{ width: '80px' }} /> {/* Spacer to center title */}
+          </div>
+          <h3 className="form-title">{title}</h3>
+          {PARTIDOS.map((p, i) => (
+            <div key={p.id} className="vote-row">
+              <div className="vote-color-dot" style={{ backgroundColor: p.hex }} />
+              <span className="vote-party-label">{p.nombre}</span>
+              <input
+                type="number"
+                className="vote-input"
+                min={0}
+                value={votos[PARTIDO_IDS[i]]}
+                onChange={e => setVotos({ ...votos, [PARTIDO_IDS[i]]: e.target.value })}
+              />
+            </div>
+          ))}
+          <hr className="vote-divider" />
+          <div className="vote-row">
+            <div className="vote-color-dot" style={{ backgroundColor: '#888' }} />
+            <span className="vote-party-label">Votos Blancos</span>
+            <input type="number" className="vote-input" min={0} value={blancos}
+              onChange={e => setBlancos(e.target.value)} />
+          </div>
+          <div className="vote-row">
+            <div className="vote-color-dot" style={{ backgroundColor: '#444' }} />
+            <span className="vote-party-label">Votos Nulos</span>
+            <input type="number" className="vote-input" min={0} value={nulos}
+              onChange={e => setNulos(e.target.value)} />
+          </div>
+        </div>
+
+        {/* Photo upload section — shown for BOTH alcalde and concejo */}
         <div className="image-upload-section fade-in">
-          <h3 className="form-title" style={{ marginBottom: '0.75rem' }}>Foto del Acta</h3>
-          {fotoPreview && (
-            <img src={fotoPreview} alt="Preview" className="image-upload-preview" />
+          <h3 className="form-title" style={{ marginBottom: '0.75rem' }}>
+            Foto del Acta – {isAlcalde ? 'Alcalde' : 'Concejo'}
+          </h3>
+          {currentFotoPreview && (
+            <img src={currentFotoPreview} alt="Preview" className="image-upload-preview" />
           )}
-          <input type="file" accept="image/*" ref={fileRef} style={{display:'none'}}
-            onChange={handleImageSelect} />
-          <input type="file" accept="image/*" capture="environment" ref={cameraRef}
-            style={{display:'none'}} onChange={handleImageSelect} />
+          <input type="file" accept="image/*" ref={currentFileRef} style={{display:'none'}}
+            onChange={e => handleImageSelect(e, setFile, setPreview)} />
+          <input type="file" accept="image/*" capture="environment" ref={currentCameraRef}
+            style={{display:'none'}} onChange={e => handleImageSelect(e, setFile, setPreview)} />
           <div className="image-upload-btns">
-            <button type="button" className="btn btn-secondary" onClick={()=>cameraRef.current?.click()}>
+            <button type="button" className="btn btn-secondary" onClick={()=>currentCameraRef.current?.click()}>
               📷 Cámara
             </button>
-            <button type="button" className="btn btn-secondary" onClick={()=>fileRef.current?.click()}>
+            <button type="button" className="btn btn-secondary" onClick={()=>currentFileRef.current?.click()}>
               🖼️ Galería
             </button>
           </div>
         </div>
-      )}
 
-      <button type="submit" className="btn btn-primary btn-block" disabled={saving}>
-        {saving ? 'Guardando...' : isAlcalde ? 'Guardar y continuar con Concejo →' : '✅ Guardar Concejo'}
-      </button>
-      {msg && <div className={`form-msg ${msg.type}`}>{msg.text}</div>}
-    </form>
-  )
+        <button type="submit" className="btn btn-primary btn-block" disabled={saving}>
+          {saving ? 'Guardando...' : isAlcalde ? 'Guardar y continuar con Concejo →' : '✅ Guardar Concejo'}
+        </button>
+        {msg && <div className={`form-msg ${msg.type}`}>{msg.text}</div>}
+      </form>
+    )
+  }
 
   if (!recinto) return <div className="operator-panel"><p className="no-data-msg">Error: sin recinto asignado</p></div>
   if (loading) return <div className="operator-panel"><div className="spinner" /></div>

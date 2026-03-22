@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, ChangeEvent, FormEvent } from 'react'
+import React, { useState, useEffect, useRef, ChangeEvent, FormEvent, MouseEvent as ReactMouseEvent } from 'react'
 import imageCompression from 'browser-image-compression'
 import { supabaseA } from '../../lib/supabaseA'
 import { supabaseC } from '../../lib/supabaseC'
@@ -34,6 +34,19 @@ export default function VerifierPanel() {
   const [mesasForRecinto, setMesasForRecinto] = useState<number>(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Zoom state
+  const [zoomLevel, setZoomLevel] = useState(1)
+  const [panPos, setPanPos] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 })
+  const zoomContainerRef = useRef<HTMLDivElement>(null)
+
+  const COMPRESSION_OPTS = {
+    maxSizeMB: 1,
+    maxWidthOrHeight: 1600,
+    useWebWorker: true
+  }
+
   // Fetch review queue
   const fetchQueue = async () => {
     const { data } = await supabaseA
@@ -57,7 +70,7 @@ export default function VerifierPanel() {
 
   useEffect(() => {
     fetchQueue()
-    const interval = setInterval(fetchQueue, 30000) // Refresh queue every 30s
+    const interval = setInterval(fetchQueue, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -81,6 +94,60 @@ export default function VerifierPanel() {
     setBlancosC(''); setNulosC('')
     setFotoUrl(''); setNewFoto(null); setNewFotoPreview('')
     setIsNewMesa(false); setMsg(null)
+    resetZoom()
+  }
+
+  const resetZoom = () => {
+    setZoomLevel(1)
+    setPanPos({ x: 0, y: 0 })
+  }
+
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 0.5, 4))
+  }
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => {
+      const next = Math.max(prev - 0.5, 1)
+      if (next === 1) setPanPos({ x: 0, y: 0 })
+      return next
+    })
+  }
+
+  // Pan handlers for mouse
+  const handlePanStart = (e: ReactMouseEvent) => {
+    if (zoomLevel <= 1) return
+    e.preventDefault()
+    setIsPanning(true)
+    setPanStart({ x: e.clientX - panPos.x, y: e.clientY - panPos.y })
+  }
+
+  const handlePanMove = (e: ReactMouseEvent) => {
+    if (!isPanning || zoomLevel <= 1) return
+    e.preventDefault()
+    setPanPos({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
+  }
+
+  const handlePanEnd = () => {
+    setIsPanning(false)
+  }
+
+  // Pan handlers for touch
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (zoomLevel <= 1) return
+    const touch = e.touches[0]
+    setIsPanning(true)
+    setPanStart({ x: touch.clientX - panPos.x, y: touch.clientY - panPos.y })
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPanning || zoomLevel <= 1) return
+    const touch = e.touches[0]
+    setPanPos({ x: touch.clientX - panStart.x, y: touch.clientY - panStart.y })
+  }
+
+  const handleTouchEnd = () => {
+    setIsPanning(false)
   }
 
   const loadMesa = async (mesaId: string) => {
@@ -126,9 +193,7 @@ export default function VerifierPanel() {
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.5, maxWidthOrHeight: 1200, useWebWorker: true
-      })
+      const compressed = await imageCompression(file, COMPRESSION_OPTS)
       setNewFoto(compressed)
       setNewFotoPreview(URL.createObjectURL(compressed))
     } catch {
@@ -311,13 +376,54 @@ export default function VerifierPanel() {
           </h3>
 
           <div className="review-content">
-            {/* Image panel */}
+            {/* Image panel with zoom */}
             <div className="review-image-panel">
+              {/* Zoom controls */}
+              {(newFotoPreview || fotoUrl) && (
+                <div className="zoom-controls">
+                  <button type="button" className="zoom-btn" onClick={handleZoomOut} disabled={zoomLevel <= 1}>
+                    🔍−
+                  </button>
+                  <span className="zoom-level">{Math.round(zoomLevel * 100)}%</span>
+                  <button type="button" className="zoom-btn" onClick={handleZoomIn} disabled={zoomLevel >= 4}>
+                    🔍+
+                  </button>
+                  {zoomLevel > 1 && (
+                    <button type="button" className="zoom-btn zoom-btn-reset" onClick={resetZoom}>
+                      ↺
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Zoomable image container */}
               {(newFotoPreview || fotoUrl) ? (
-                <img src={newFotoPreview || fotoUrl} alt="Acta" className="review-image" />
+                <div
+                  ref={zoomContainerRef}
+                  className={`zoom-container ${zoomLevel > 1 ? 'zoom-active' : ''} ${isPanning ? 'zoom-grabbing' : ''}`}
+                  onMouseDown={handlePanStart}
+                  onMouseMove={handlePanMove}
+                  onMouseUp={handlePanEnd}
+                  onMouseLeave={handlePanEnd}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                >
+                  <img
+                    src={newFotoPreview || fotoUrl}
+                    alt="Acta"
+                    className="review-image"
+                    style={{
+                      transform: `scale(${zoomLevel}) translate(${panPos.x / zoomLevel}px, ${panPos.y / zoomLevel}px)`,
+                      cursor: zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
+                    }}
+                    draggable={false}
+                  />
+                </div>
               ) : (
                 <div className="review-image-placeholder">Sin imagen del acta</div>
               )}
+
               <input type="file" accept="image/*" ref={fileRef} style={{display:'none'}}
                 onChange={handleNewImage} />
               <button type="button" className="btn btn-secondary" onClick={() => fileRef.current?.click()}
