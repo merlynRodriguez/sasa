@@ -212,9 +212,15 @@ export default function OperatorPanel() {
   ) => (
     <form onSubmit={onSubmit}>
       <div className="form-section fade-in">
-        <h2 style={{ textAlign: 'center', marginBottom: '0.5rem', color: 'var(--brand-celeste)', fontSize: '1.5rem', fontWeight: 'bold' }}>
-          Mesa {selectedMesa.split('-M')[1]?.replace(/^0/, '')}
-        </h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <button type="button" className="btn btn-secondary" onClick={() => { setStep('select'); setSelectedMesa(''); }}>
+            ← Volver
+          </button>
+          <h2 style={{ margin: 0, color: 'var(--brand-celeste)', fontSize: '1.8rem', fontWeight: '900' }}>
+            Mesa {selectedMesa.split('-M')[1]?.replace(/^0/, '')}
+          </h2>
+          <div style={{ width: '80px' }} /> {/* Spacer to center title */}
+        </div>
         <h3 className="form-title">{title}</h3>
         {PARTIDOS.map((p, i) => (
           <div key={p.id} className="vote-row">
@@ -279,8 +285,10 @@ export default function OperatorPanel() {
     <div className="operator-panel">
       <div className="dashboard-header" style={{ marginBottom: '2rem' }}>
         <div className="dashboard-header-left">
-          <h1>Portal del Operador</h1>
-          <h2>{recinto.nombre}</h2>
+          <h1 style={{ fontSize: '1.2rem', opacity: 0.8 }}>Portal del Operador</h1>
+          <h2 style={{ fontSize: '2.5rem', fontWeight: '900', color: 'var(--brand-yellow)', textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+            {recinto.nombre}
+          </h2>
         </div>
         <div className="dashboard-header-right">
           <span className="party-name">UNE</span>
